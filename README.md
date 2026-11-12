@@ -4,6 +4,16 @@ A small local MCP server using Node.js 24, TypeScript 7, MCP server SDK 2.4.0,
 and Zod 4. It communicates through stdio; stdout carries only MCP messages.
 Startup diagnostics go to stderr.
 
+## Learning documentation
+
+Start with the [learning guide](docs/README.md), then follow
+[Lab 1: MCP fundamentals](docs/lab-01-mcp-fundamentals.md) and
+[Lab 2: DevOps monitoring](docs/lab-02-devops-monitoring.md).
+See [MCP architecture](docs/concepts/mcp-architecture.md),
+[security fundamentals](docs/concepts/security-fundamentals.md), and
+[troubleshooting](docs/troubleshooting.md) for supporting explanations and the
+recorded verification results and limitations.
+
 ```sh
 npm install
 npm run typecheck
