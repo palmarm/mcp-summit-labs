@@ -52,7 +52,9 @@ test("MCP stdio discovery, tool calls, and input validation", { timeout: 30_000 
   child.stdin.write(`${JSON.stringify({ jsonrpc: "2.0", method: "notifications/initialized" })}\n`);
 
   const { tools } = await request("tools/list");
-  assert.deepEqual(tools.map((tool) => tool.name).sort(), ["add_numbers", "server_health"]);
+  assert.deepEqual(tools.map((tool) => tool.name).sort(), [
+    "add_numbers", "disk_usage", "memory_usage", "server_health", "system_info",
+  ]);
 
   const sum = await request("tools/call", {
     name: "add_numbers", arguments: { a: 2, b: 3 },
