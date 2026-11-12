@@ -1,6 +1,7 @@
 import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { z } from "zod";
+import { registerMonitoringTools } from "./monitoring-tools.js";
 
 // 1. Create our MCP server.
 const server = new McpServer({
@@ -56,7 +57,10 @@ server.registerTool(
   },
 );
 
-// 4. Connect the server through stdio.
+// 4. Register the read-only monitoring tools.
+registerMonitoringTools(server);
+
+// 5. Connect the server through stdio.
 async function main() {
   const transport = new StdioServerTransport();
 
