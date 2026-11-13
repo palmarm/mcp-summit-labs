@@ -2,6 +2,8 @@ import { McpServer, type CallToolResult } from "@modelcontextprotocol/server";
 import { StdioServerTransport } from "@modelcontextprotocol/server/stdio";
 import { z } from "zod";
 import { registerMonitoringTools } from "./monitoring-tools.js";
+import { LabNotes, noteWritesEnabled } from "./lab-notes.js";
+import { registerNoteTool } from "./note-tools.js";
 
 // 1. Create our MCP server.
 const server = new McpServer({
@@ -62,14 +64,22 @@ registerMonitoringTools(server);
 
 // 5. Connect the server through stdio.
 async function main() {
-  const transport = new StdioServerTransport();
+  const notes = await LabNotes.create({ enabled: noteWritesEnabled(process.argv.slice(2)) });
+  registerNoteTool(server, notes);
+  const transport = new StdioServerTransport(process.stdin, process.stdout, { maxBufferSize: 1024 * 1024 });
+  server.server.onclose = () => { void notes.close().catch(() => console.error("Note writer cleanup failed.")); };
 
-  await server.connect(transport);
+  for (const signal of ["SIGINT", "SIGTERM"] as const) {
+    process.once(signal, () => { void server.close().catch(() => { process.exitCode = 1; }); });
+  }
+
+  try { await server.connect(transport); }
+  catch (error) { await notes.close().catch(() => {}); throw error; }
 
   console.error("MCP server connected through stdio");
 }
 
-main().catch((error) => {
-  console.error("Failed to start MCP server:", error);
+main().catch(() => {
+  console.error("Failed to start MCP server: check startup configuration and trusted note storage.");
   process.exitCode = 1;
 });

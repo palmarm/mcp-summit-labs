@@ -105,8 +105,9 @@ direct `node /absolute/path/to/project/dist/index.js` command instead of a noisy
 wrapper. The existing integration test uses `process.execPath` directly.
 
 If only two tools appear, check for a stale Lab 1 build or a different checkout.
-The current entry point registers all five tools, including
-`registerMonitoringTools(server)`, before connecting the transport.
+The current entry point registers six tools, including
+`registerMonitoringTools(server)` and `registerNoteTool(server, notes)`, before
+connecting the transport. `write_lab_note` is discoverable even when disabled.
 
 ### Sandbox subprocess failures versus local success
 
@@ -125,6 +126,10 @@ collection failures from stdio launch failures. Node's default test runner can
 itself launch subprocesses; its isolation setting matters in a restricted runner.
 Use a permitted local environment when end-to-end subprocess I/O is unavailable.
 
+The completed Lab 3 implementation also passed the full local suite outside the
+sandbox: 26 tests, zero failures, zero skips. An earlier sandboxed Lab 3 run
+failed at the file/subprocess level. Keep those execution environments distinct.
+
 ### Monitoring results and generic errors
 
 | Symptom | Check |
@@ -141,6 +146,30 @@ Use a permitted local environment when end-to-end subprocess I/O is unavailable.
 The implementation rejects invalid block relationships and unsafe byte counts.
 It is not a quota inspector or container-limit calculator. Do not return internal
 exceptions to the caller as a debugging shortcut.
+
+### Lab 3 startup, permissions, and audits
+
+| Symptom | Check |
+| --- | --- |
+| `Note writes are disabled` | Restart the **server process** with the separate argument `--enable-note-writes`; it is not an MCP tool argument or an Inspector policy setting. |
+| Generic startup failure when enabling writes | Linux and an allowlisted local filesystem; canonical working directory; trusted ancestor ownership/modes; private directory types/modes; existing note entries; writer lock. |
+| Working directory differs from expectation | Note storage is fixed beneath the server's launch directory. An absolute script path does not choose that directory. |
+| Enabled server fails only in a container | Overlay, FUSE, and network filesystems are deliberately not allowlisted. Do not silently bypass the check. |
+| Unknown `path` or `filename` input rejected | Expected: only `content` is accepted. Invalid arguments get a safe validation denial and an outcome audit when the audit sink works. |
+| Character count appears valid but input fails | Limits are 1–8192 UTF-8 bytes; malformed surrogate pairs, NUL, and unsupported controls are rejected. |
+| Queue busy or quota reached | Write capacity is bounded at 16 accepted operations, including the running operation; cumulative note content is capped at 10 MiB. |
+| Required auditing unavailable | Further writes are refused. Audit-file ownership/mode/link checks, writes, sync, and backlog can fail closed. |
+| Note created but completion audit unconfirmed | The note may exist. Preserve the operation ID and inspect locally; do not retry automatically. |
+| Cleanup could not be confirmed | A partial note may remain; further writes stop. Inspect before recovery. |
+| `.note-writer.lock` remains after a crash | A second writer or stale lock blocks initialization. Verify no writer is alive and inspect storage before any operator-controlled recovery; there is no automatic stale-lock removal. |
+
+Use the [Lab 3 Inspector setup](lab-03-mcp-security.md#mcp-inspector-setup) to
+separate command, argument tokens, and tool arguments. Do not insert a bare `--`
+into the server's actual argument array: its startup parser accepts only zero
+arguments or the single exact enable flag. Inspector's own separator handling is
+a separate concern. Follow [manual verification](lab-03-mcp-security.md#manual-verification)
+for read-only permission/audit inspection; do not broadly chmod existing data or
+delete locks merely to obtain a passing result.
 
 ## Commands
 
@@ -187,6 +216,13 @@ and [test/monitoring.test.mjs](../test/monitoring.test.mjs). This is recorded pr
 evidence, not a newly executed documentation-task test run. The
 [shared verification record](README.md#verification) also records the earlier
 sandbox failure, successful typecheck/build, and unverified Inspector workflow.
+
+Those six cases describe the Lab 2 milestone. Lab 3 extends the full suite to
+26 passing tests with no failures or skips in its recorded local run, including
+[note-service tests](../test/lab-notes.test.mjs) and
+[enabled stdio testing](../test/note-stdio.test.mjs). See
+[Lab 3 automated verification](lab-03-mcp-security.md#automated-verification).
+No runtime tests were rerun for this documentation-only update.
 
 ## Troubleshooting
 
