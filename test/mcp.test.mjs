@@ -53,7 +53,7 @@ test("MCP stdio discovery, tool calls, and input validation", { timeout: 30_000 
 
   const { tools } = await request("tools/list");
   assert.deepEqual(tools.map((tool) => tool.name).sort(), [
-    "add_numbers", "disk_usage", "memory_usage", "server_health", "system_info",
+    "add_numbers", "disk_usage", "memory_usage", "server_health", "system_info", "write_lab_note",
   ]);
 
   const sum = await request("tools/call", {
@@ -75,4 +75,10 @@ test("MCP stdio discovery, tool calls, and input validation", { timeout: 30_000 
   assert.equal(invalid.isError, true);
   assert.equal(invalid.content[0].type, "text");
   assert.match(invalid.content[0].text, /validation/i);
+
+  const denied = await request("tools/call", {
+    name: "write_lab_note", arguments: { content: "disabled stdio test" },
+  });
+  assert.equal(denied.isError, true);
+  assert.match(denied.content[0].text, /disabled/);
 });

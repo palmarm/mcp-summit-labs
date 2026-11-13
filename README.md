@@ -1,4 +1,4 @@
-# MCP Practical Labs 1 and 2
+# MCP Practical Labs 1–3
 
 A small local MCP server using Node.js 24, TypeScript 7, MCP server SDK 2.4.0,
 and Zod 4. It communicates through stdio; stdout carries only MCP messages.
@@ -7,8 +7,9 @@ Startup diagnostics go to stderr.
 ## Learning documentation
 
 Start with the [learning guide](docs/README.md), then follow
-[Lab 1: MCP fundamentals](docs/lab-01-mcp-fundamentals.md) and
-[Lab 2: DevOps monitoring](docs/lab-02-devops-monitoring.md).
+[Lab 1: MCP fundamentals](docs/lab-01-mcp-fundamentals.md),
+[Lab 2: DevOps monitoring](docs/lab-02-devops-monitoring.md), and
+[Lab 3: MCP security and tool permissions](docs/lab-03-mcp-security.md).
 See [MCP architecture](docs/concepts/mcp-architecture.md),
 [security fundamentals](docs/concepts/security-fundamentals.md), and
 [troubleshooting](docs/troubleshooting.md) for supporting explanations and the
@@ -35,12 +36,19 @@ containing that directory, regardless of where the server JavaScript is located.
 | `system_info` | `{}` | `platform`, `architecture`, `kernelRelease`, `hostname`, `nodeVersion`. |
 | `memory_usage` | `{}` | `totalBytes`, `freeBytes`, `usedBytes`, `utilizationPercent`. |
 | `disk_usage` | `{}` | `path`, `totalBytes`, `availableBytes`, `usedBytes`, `utilizationPercent`. |
+| `write_lab_note` | `content`: validated text | `noteId`, generated `filename`, and `bytesWritten`; writes are disabled by default. |
 
 The three monitoring tools advertise output schemas and read-only annotations.
 Successful calls return machine-readable `structuredContent` alongside readable
 text. For example, call `memory_usage` with `{}` and read
 `result.structuredContent.usedBytes`. Failed reads return `isError: true` with a
 generic text message, without raw OS errors, stack traces, or partial metrics.
+
+`write_lab_note` is a separate, additive write capability. Only the startup flag
+`--enable-note-writes` enables it, on supported trusted local Linux filesystems.
+It creates notes under `lab-data/notes/` and private audits under `lab-data/audit/`.
+It implements no user authentication. See [Lab 3](docs/lab-03-mcp-security.md) for
+the input limits, security assumptions, audit failures, and manual verification.
 
 ## Interpreting the metrics
 
@@ -89,11 +97,15 @@ they are not an authorization mechanism. Error responses omit internal details.
 
 `npm test` builds first and runs Node's test runner. The existing stdio integration
 test still checks discovery, addition, health, and invalid calculator input, with
-the expected tool list extended for Lab 2. In-memory MCP tests exercise monitoring
+the expected tool list extended through Lab 3 and a default-off note denial.
+In-memory MCP tests exercise monitoring
 registration, schemas, real invocations, numeric bounds, safe failures, and rejection
 of client paths. Deterministic reader fixtures check reserved disk blocks, zero
 capacity, invalid readings, and oversized counts without relying on exact live
-metrics or host-specific failures. No test changes host permissions or resources.
+metrics or host-specific failures. Lab 3 adds isolated temporary-directory tests
+for note permissions, auditing, quota, concurrency, and failures, including an
+enabled stdio session. Some tests change permissions only inside their temporary
+fixtures. The recorded local Lab 3 run passed 26 tests, with zero failures or skips.
 
 Some execution sandboxes restrict subprocess stdio and prevent the stdio test
 from running successfully. Report that failure explicitly; it does not replace a

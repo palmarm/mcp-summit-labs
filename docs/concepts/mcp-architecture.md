@@ -16,7 +16,7 @@ The host coordinates user interaction and client connections. A client handles
 the protocol session with a particular server. The server provides capabilities
 through that session. These roles follow the
 [MCP architecture specification](https://modelcontextprotocol.io/specification/2025-11-25/architecture).
-This repository implements five tools; it does not register prompts or resources.
+This repository implements six tools; it does not register prompts or resources.
 
 ```mermaid
 sequenceDiagram
