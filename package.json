@@ -7,6 +7,8 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "controller": "node dist/controller/cli.js",
+    "agent": "node dist/agent/cli.js",
     "typecheck": "tsc --noEmit",
     "test": "npm run build && node --test test/*.test.mjs"
   },
@@ -15,6 +17,8 @@
   "license": "ISC",
   "type": "module",
   "dependencies": {
+    "@google/genai": "3.4.0",
+    "@modelcontextprotocol/client": "2.4.0",
     "@modelcontextprotocol/server": "^2.4.0",
     "tsx": "^4.23.15",
     "zod": "^4.6.7"
