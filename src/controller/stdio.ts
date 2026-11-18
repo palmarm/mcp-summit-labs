@@ -45,14 +45,19 @@ export class ConfirmedStdioTransport extends StdioClientTransport {
 // SDK operations are separate from policy/evaluation, so a later HTTP adapter or
 // LLM planner can use the same allowlist and validated reporting boundary.
 export class McpOperationsSession implements OperationsSession {
-  private readonly client = new Client({ name: "lab4a-operations-controller", version: "1.0.0" }, {
-    capabilities: {}, listMaxPages: 16,
-  });
+  private readonly client: Client;
   private closing = false;
   private closePromise?: Promise<void>;
   private readonly disconnected: Promise<never>;
 
-  constructor(private readonly transport: Transport) {
+  constructor(private readonly transport: Transport, options: { protocolVersion?: "2026-07-28" } = {}) {
+    this.client = new Client({ name: "lab4a-operations-controller", version: "1.0.0" }, {
+      capabilities: {}, listMaxPages: 16,
+      ...(options.protocolVersion ? {
+        supportedProtocolVersions: [options.protocolVersion],
+        versionNegotiation: { mode: { pin: options.protocolVersion } },
+      } : {}),
+    });
     let rejectDisconnected: (error: ControllerError) => void = () => {};
     this.disconnected = new Promise((_, reject) => { rejectDisconnected = reject; });
     void this.disconnected.catch(() => {});

@@ -7,6 +7,7 @@
     "dev": "tsx src/index.ts",
     "build": "tsc",
     "start": "node dist/index.js",
+    "start:http": "node dist/http.js",
     "controller": "node dist/controller/cli.js",
     "agent": "node dist/agent/cli.js",
     "typecheck": "tsc --noEmit",
@@ -19,6 +20,7 @@
   "dependencies": {
     "@google/genai": "3.4.0",
     "@modelcontextprotocol/client": "2.4.0",
+    "@modelcontextprotocol/node": "2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
     "tsx": "^4.23.15",
     "zod": "^4.6.7"

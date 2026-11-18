@@ -1,13 +1,15 @@
 import { formatTerminal } from "../controller/reporting.js";
 import { createSimulation, isSimulation, SIMULATIONS, type Simulation } from "../controller/simulation.js";
 import { createLocalSession } from "../controller/stdio.js";
+import { createHttpSession } from "../controller/http.js";
+import { DEFAULT_HTTP_URL, localHttpUrl } from "../http-policy.js";
 import { createGeminiModel, DEFAULT_MODEL, FREE_TIER_REFERENCE } from "./gemini.js";
 import { createMockModel, isMockFixture, MOCK_FIXTURES, type MockFixture } from "./mock.js";
 import { AgentError, agentFailure, bounded, LIMITS, safeText, type AgentModel } from "./model.js";
 import { runAgent } from "./runner.js";
 
 const HELP = `Gemini MCP DevOps Agent (Lab 4B; Node.js >=22)
-Usage: node dist/agent/cli.js [--json] [--mock FIXTURE] [--simulate MODE] "question"
+Usage: node dist/agent/cli.js [--json] [--mock FIXTURE] [--simulate MODE] [--transport stdio|http] [--url URL] "question"
        node dist/agent/cli.js --check-model
 Mock fixtures: ${MOCK_FIXTURES.join(", ")}
 Monitoring simulations (require --mock): ${SIMULATIONS.join(", ")}
@@ -25,6 +27,12 @@ uses that model's terms. A paid-tier project can incur charges for the same mode
 requires no key/network, and never enables note writes. Add --simulate for fully
 deterministic metrics without a child process or OS reads. Mock questions do not
 change the fixture's tool choices. Only three read-only monitoring tools are exposed.
+Transport defaults to stdio. --transport http uses the independently started local
+server; --url defaults to ${DEFAULT_HTTP_URL} and requires HTTP. Only literal IPv4
+127.0.0.1, an explicit port and /mcp are accepted. No redirects or remote access.
+HTTP pins 2026-07-28 with no legacy fallback; closing the client leaves the server
+running. Origin checks are not authentication. Simulations and --check-model do
+not accept HTTP transport options. Mock HTTP use requires no Gemini API key.
 Model-requested calls and deterministic completion checks are labelled in the trace.
 All tool names/arguments are checked before MCP invocation. No raw MCP text, host
 identity, paths, prompts, credentials, or opaque model history enter the trace.
@@ -43,6 +51,9 @@ async function main(): Promise<void> {
   let simulation: Simulation | undefined;
   let checkModel = false;
   let invalid = false;
+  let transport: "stdio" | "http" = "stdio";
+  let transportSelected = false;
+  let endpoint: string | undefined;
   const questionParts: string[] = [];
   const args = process.argv.slice(2);
   if (args.length === 1 && args[0] === "--help") { process.stdout.write(HELP); return; }
@@ -59,12 +70,21 @@ async function main(): Promise<void> {
     } else if (arg === "--simulate" && simulation === undefined) {
       const value = args[++index];
       if (value && isSimulation(value)) simulation = value; else invalid = true;
+    } else if (arg === "--transport" && !transportSelected) {
+      transportSelected = true;
+      const value = args[++index];
+      if (value === "stdio" || value === "http") transport = value; else invalid = true;
+    } else if (arg === "--url" && endpoint === undefined) {
+      endpoint = args[++index];
+      try { localHttpUrl(endpoint ?? ""); } catch { invalid = true; }
     } else if (arg.startsWith("--")) invalid = true;
     else questionParts.push(arg);
   }
   const question = questionParts.join(" ");
   if ((simulation && !fixture) || (checkModel && (fixture || simulation || question)) ||
       (!checkModel && (!question.trim() || question.length > 4000))) invalid = true;
+  if ((endpoint && transport !== "http") || (simulation && transport === "http") ||
+      (checkModel && (transportSelected || endpoint))) invalid = true;
   const abort = new AbortController();
   const cancel = () => abort.abort();
   process.on("SIGINT", cancel);
@@ -81,10 +101,11 @@ async function main(): Promise<void> {
         freeTierPricingReference: configured.modelId === DEFAULT_MODEL ? FREE_TIER_REFERENCE : null }, null, 2) + "\n");
       return;
     }
-    const report = await runAgent(simulation ? createSimulation(simulation) : createLocalSession(), model,
+    const report = await runAgent(simulation ? createSimulation(simulation) :
+      transport === "http" ? createHttpSession(endpoint) : createLocalSession(), model,
       safeText(question, [process.env.GEMINI_API_KEY ?? ""]), {
         mode: fixture ? "mock" : "live", signal: abort.signal,
-        source: simulation ? `agent-simulation:${simulation}` : "agent-stdio",
+        source: simulation ? `agent-simulation:${simulation}` : transport === "http" ? "agent-http" : "agent-stdio",
       });
     process.exitCode = report.readiness.exitCode;
     if (!jsonOnly) {
