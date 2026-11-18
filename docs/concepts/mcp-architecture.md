@@ -16,7 +16,10 @@ The host coordinates user interaction and client connections. A client handles
 the protocol session with a particular server. The server provides capabilities
 through that session. These roles follow the
 [MCP architecture specification](https://modelcontextprotocol.io/specification/2025-11-25/architecture).
-This repository implements six tools; it does not register prompts or resources.
+The original stdio server implements six tools; the independent HTTP server
+registers only three monitoring tools. Neither registers prompts or resources.
+Lab 4 adds an operations controller as a host application and a Gemini agent
+whose planner selects tools while local code enforces policy.
 
 ```mermaid
 sequenceDiagram
@@ -37,7 +40,30 @@ sequenceDiagram
     S-->>C: JSON-RPC result
 ```
 
-The sequence reflects the test clients. Invalid arguments produce a validation
+The sequence reflects the `2025-11-25` stdio clients. Lab 4C's stateless
+`2026-07-28` HTTP path uses SDK `server/discover` and per-request protocol
+metadata instead of this initialization session:
+
+```mermaid
+sequenceDiagram
+    participant C as HTTP MCP client
+    participant N as Loopback Node listener
+    participant H as SDK handler factory
+    C->>N: POST /mcp with discovery and protocol metadata
+    N->>N: Validate address, Host, Origin, and limits
+    N->>H: Adapt request with toNodeHandler
+    H-->>C: SDK discovery response
+    C->>N: Independent POST tool call
+    N->>H: Fresh server exchange
+    H-->>C: Validated tool result
+```
+
+There is no HTTP session ID or legacy fallback on this endpoint. The independent
+listener survives client closure; the stdio child is owned by its client. These
+are the repository's supported/tested paths, not a claim that every version or
+transport supported by the SDK is enabled.
+
+Invalid arguments produce a validation
 result without running the collector. Tool errors (`isError: true`) are distinct
 from a JSON-RPC `error` envelope; the tests explicitly inspect the former while
 requiring normal calls to have no protocol error envelope.
@@ -62,8 +88,17 @@ The contract has several layers:
 Stdio uses newline-delimited messages through process streams; diagnostics use
 stderr. The protocol describes that separation in the
 [transport specification](https://modelcontextprotocol.io/specification/2025-11-25/basic/transports#stdio).
-The production entry point uses stdio only. The in-memory transport is a test
-connection and does not add a second deployed endpoint.
+The original entry point retains stdio. [src/http.ts](../../src/http.ts) starts
+the independent local endpoint using server SDK `createMcpHandler` and Node
+adapter `toNodeHandler`, reusing monitoring registrations. In-memory transports
+remain test connections. No public deployment is configured.
+
+[OperationsSession](../../src/controller/model.ts) separates connection mechanics
+from the controller/agent runner. Both SDK transports feed the same
+[evaluator](../../src/controller/evaluator.ts). The Gemini adapter exposes static
+function declarations, validates proposed names/arguments locally, and returns
+projected structured results. A model may propose calls and explanations, but
+cannot change the evaluator's thresholds or exit codes.
 
 ## Commands
 
@@ -77,12 +112,26 @@ does not launch a host UI or automatically invoke tools. Prefer the
 [Inspector workflow](../lab-01-mcp-fundamentals.md#optional-mcp-inspector) for
 interactive inspection, or `npm test` for automated sessions.
 
+For a host application that actually discovers and invokes monitoring tools:
+
+```sh
+node dist/controller/cli.js
+node dist/agent/cli.js --mock all --simulate healthy "Check readiness"
+```
+
+For HTTP, start `npm run start:http` separately, then use
+`node dist/controller/cli.js --transport http`. See
+[Lab 4C](../lab-04c-streamable-http.md#commands) for complete local commands.
+
 ## Verification
 
 [test/mcp.test.mjs](../../test/mcp.test.mjs) implements a sequential stdio client
 with correlated request IDs. [test/monitoring.test.mjs](../../test/monitoring.test.mjs)
 uses linked SDK in-memory transports and the same initialization/discovery/call
-pattern. No client SDK package is added to the dependency manifest.
+pattern. Lab 4 uses the official client SDK package for real stdio and HTTP
+connections. Controller tests cover discovery and output validation; agent tests
+use deterministic models/API stubs; [HTTP tests](../../test/http.test.mjs) check
+modern stateless exchanges and readiness equivalence with isolated fixtures.
 
 These tests exercise protocol behavior without an LLM. Their recorded results,
 including the sandbox failure and local success, are in the
@@ -107,6 +156,12 @@ read-only annotation is descriptive metadata. Read
 Separating transport, protocol contracts, and collection makes failures easier
 to locate: launching a process, negotiating a session, discovering a tool, and
 obtaining a valid measurement are different checks.
+
+## Limitations
+
+No prompts/resources API, remote endpoint, deployment executor, or production
+orchestrator is provided. The model's explanation is not a policy decision, and
+stateless HTTP exchanges do not supply user identity or authorization.
 
 ## Lessons learned
 

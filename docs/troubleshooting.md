@@ -22,7 +22,7 @@ Work outward from the first failing boundary:
 flowchart TD
     Inputs["Source files and tsconfig"] --> Types["Typecheck and build"]
     Types --> Launch["Correct executable and working directory"]
-    Launch --> Session["Stdio initialization and discovery"]
+    Launch --> Session["Stdio initialization or HTTP discovery"]
     Session --> Validation["Tool input validation"]
     Validation --> Reading["OS read and numeric accounting"]
     Reading --> Result["Result schema and client display"]
@@ -171,6 +171,63 @@ a separate concern. Follow [manual verification](lab-03-mcp-security.md#manual-v
 for read-only permission/audit inspection; do not broadly chmod existing data or
 delete locks merely to obtain a passing result.
 
+### Controller readiness and exit codes
+
+| Symptom | Check |
+| --- | --- |
+| Exit `1` | At least one valid utilization check is >=90%, with a complete assessment. This is critical, not a transport failure. |
+| Exit `2` despite a critical disk check | Any failed/missing/unknown check makes the overall assessment unknown. Read the per-tool checks and safe failure kinds. |
+| Exit `0` with a warning | Expected: warning starts at 75% and remains advisory. Thresholds use unrounded percentages. |
+| Missing/duplicate required tool | Rebuild and verify the intended server; no tool calls start until discovery passes. |
+| Malformed tool response | Structured output is required. The SDK can reject the response before local validation; raw text is never used as replacement metrics. |
+| JSON parser sees npm output | Use direct `node dist/controller/cli.js --json` or npm `--silent`; keep stderr separate. |
+| Hanging/stale child | The stdio close path confirms child termination. Preserve a reported cleanup failure; do not label it healthy. |
+
+Use [Lab 4A simulations](lab-04a-mcp-operations-controller.md#simulation-fixtures)
+to reproduce warning, critical, malformed output, missing tools, transport
+failure, and tool failure without loading real hardware. A tool `isError`
+response is not the same as failure to connect or communicate with the server.
+
+### Gemini model and agent failures
+
+| Symptom | Check |
+| --- | --- |
+| Configuration failure | Export `GEMINI_API_KEY` in the current shell; `.env` is not loaded. Confirm a valid `GEMINI_MODEL` value. Never print the key. |
+| `--check-model` succeeds but generation fails | Metadata availability is a separate check, not proof of inference success, quota, or billing tier. |
+| `model_timeout` | The bounded model request expired (15 seconds), or the provider returned 408/504. The agent does not automatically retry or change models. |
+| HTTP 503 from Gemini | Classified as `model_api`, with a fixed message; not automatically classified as a quota failure. |
+| HTTP 429 / 404 / 401 or 403 from Gemini | Classified as `model_quota` / `model_unavailable` / `model_auth`, respectively. These provider codes differ from a local MCP HTTP denial. |
+| Denied tool or argument | Expected policy rejection for writes, unknown names, or nonempty arguments; do not expand permissions to satisfy a model. |
+| Loop or call limit | Four model turns and six total MCP calls are bounded, including local completion checks. Use a narrower question or inspect a deterministic mock. |
+| Trace shows `readiness` | The local runner completed required checks after the model finished. These were not model-selected calls. |
+
+The reported `gemini-3.8-flash` live attempts encountered a timeout and HTTP 503.
+The operator subsequently reported successful minimal generation and a live MCP
+agent invocation with explicit `GEMINI_MODEL=gemini-3.5-flash-lite`, including
+live HTTP use in Lab 4C. These manual outcomes do not establish future service
+availability, Free tier entitlement, billing, or quota. No automatic fallback
+occurred. See [Lab 4B](lab-04b-ai-agent-orchestration.md#verification) for the
+recorded scope and [private configuration commands](lab-04b-ai-agent-orchestration.md#live-gemini-configuration).
+
+### Local Streamable HTTP
+
+| Symptom | Check |
+| --- | --- |
+| Unknown transport result / exit `2` | Start `npm run start:http` separately; verify the ready line, port, and exact `/mcp` URL. |
+| `localhost`, remote URL, query, or redirect rejected | The client accepts only literal `http://127.0.0.1:PORT/mcp`, with an explicit port and no redirect. |
+| Local HTTP `403` | Check exact Host, supplied Origin, loopback addresses, duplicate headers, and proxy headers. Origin must match the server's actual port if present. |
+| GET `/mcp` returns `405` | Expected. This endpoint is POST-only, not a browser page or standalone GET stream. |
+| Legacy initialization rejected | HTTP pins `2026-07-28` and rejects legacy sessions; stdio retains tested `2025-11-25` behavior. Use the compatible SDK adapter. |
+| `413`, `431`, or timeout | Request body limit is 64 KiB, header limit 8 KiB/64 pairs, deadline 5 seconds. Do not remove limits for malformed clients. |
+| Different stdio and HTTP disk values | HTTP uses its independently launched server's working directory; stdio uses the project root. Compare filesystem and sampling time. |
+| Port remains occupied after client finishes | The HTTP server has an independent lifecycle. Stop it with Ctrl-C in its own terminal. |
+
+Use [Lab 4C's denial and shutdown commands](lab-04c-streamable-http.md#verify-invalid-origin-denial).
+Origin validation is not authentication. Do not remove guards, bind publicly, or
+introduce forwarding to work around this intentionally local endpoint policy.
+For reproducible metrics use the isolated-port fixture tests; real snapshots can
+change between calls.
+
 ## Commands
 
 Run these checks individually so the first failure remains visible:
@@ -222,6 +279,11 @@ Those six cases describe the Lab 2 milestone. Lab 3 extends the full suite to
 [note-service tests](../test/lab-notes.test.mjs) and
 [enabled stdio testing](../test/note-stdio.test.mjs). See
 [Lab 3 automated verification](lab-03-mcp-security.md#automated-verification).
+Later recorded stage totals were **56 passing tests for Lab 4A**, **80 for
+Lab 4B**, and **96 for Lab 4C**, with typecheck, build, and whitespace checks
+passing at those milestones. HTTP tests use isolated loopback ports and injected
+readings; automated Gemini tests use mocks. Live model/HTTP outcomes are recorded
+separately in the [shared record](README.md#verification).
 No runtime tests were rerun for this documentation-only update.
 
 ## Troubleshooting

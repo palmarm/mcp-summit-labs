@@ -36,7 +36,10 @@ errors reveal. None of these provides a complete client authorization system.
 | Disk target | `process.cwd()` selected internally. | The launcher controls the directory; this is not filesystem isolation. |
 | Host operations | `node:os` and `statfs`; no command execution or file-content reads in monitoring. | Reads still run under the server's OS account and environment. |
 | Monitoring errors | Fixed text with `isError: true`. | Successful output intentionally includes host details. |
-| Transport | Local stdio entry point. | The project implements no authentication or remote HTTP service. |
+| Transport | Client-owned stdio process or independently started loopback HTTP listener. | No authentication; HTTP Origin checks do not authenticate local processes. |
+| Controller/agent tool access | Three-name runtime allowlist, empty arguments, discovery gate; HTTP registers only those three tools. | Stdio still advertises six tools; discovery alone does not grant permission. |
+| Model disclosure | Validated numeric projection and safe errors; no raw MCP text, identity strings, or disk paths. | Live questions/results leave the machine; text redaction is not general secret detection. |
+| Model execution | Four turns, six total calls, bounded requests/run, no automatic model fallback. | Model availability, billing tier, and quota are not guaranteed or verified. |
 | Note creation | Strict content-only schema; startup `--enable-note-writes` gate; generated filenames; exclusive creation. | All callers of an enabled process share this local capability. |
 | Note storage and audits | Private Linux directories/files, cumulative quota, one-writer lock, safe per-session events. | Requires trusted local ancestors and users; logs are not tamper-proof against the same account/root. |
 
@@ -63,7 +66,9 @@ Success reveals `hostname`, platform/architecture, kernel/runtime versions,
 memory and disk capacity, and the working directory. It does not intentionally
 return environment variables or credentials. Monitoring failures omit the raw
 error. The entry-point startup catch now emits a fixed diagnostic instead of a
-raw exception. Startup and cleanup diagnostics use stderr, preserving MCP stdout.
+raw exception. Stdio startup and cleanup diagnostics use stderr, preserving MCP stdout.
+The HTTP entry prints its ready line outside MCP response bodies. The controller
+and agent write sanitized JSON to stdout and human summaries to stderr.
 
 Lab 3 distinguishes three concepts: **authentication** establishes identity;
 **authorization** decides whether that identity may perform an operation;
@@ -78,6 +83,33 @@ values. Required audit failures stop note creation; completion-audit uncertainty
 after a file was created is reported explicitly. See
 [Lab 3](../lab-03-mcp-security.md) for the trust model, exact checks, and residual races.
 
+### Lab 4 client and HTTP boundaries
+
+The controller launches a fixed built stdio executable without the note-write
+flag, then validates structured responses and discards identity/path strings.
+The agent validates every model-selected name and its empty arguments before
+MCP execution. Unknown tool names and write requests are denied, not forwarded.
+The shared evaluator alone sets readiness and exit codes. No model instruction
+can enable a capability or turn a failed assessment into a successful one.
+
+The HTTP server never registers `write_lab_note`, even as a disabled tool. It
+binds `127.0.0.1`, requires matching local/peer addresses and a single exact Host,
+rejects forwarding headers, and validates a supplied Origin against its exact
+local origin. Origin may be absent for a local nonbrowser client. Body/header
+limits and 5-second deadlines bound requests; the client rejects redirects and
+nonlocal URLs. See [Lab 4C](../lab-04c-streamable-http.md#local-endpoint-restrictions).
+
+**Origin validation is not authentication.** An untrusted local process can
+omit/forge it. There is no TLS, OAuth, multi-user policy, proxy trust, or safe
+public HTTP exposure supplied by these controls. Keep this a trusted local lab.
+
+`GEMINI_API_KEY` is read only for live model use, with no key argument or report
+field. Questions and sanitized results are sent to Google's API. Known-key and
+pattern redaction does not justify putting secrets in a prompt. Never serialize
+raw SDK exceptions, opaque history, or the environment for troubleshooting.
+An exported model override is explicit; no error silently chooses a paid model.
+Neither model metadata nor successful generation verifies billing or quota.
+
 ## Commands
 
 ```sh
@@ -88,7 +120,8 @@ node dist/index.js
 Launch from a deliberately chosen working directory under an account with
 appropriate access. Configure a trusted MCP client to start the direct Node
 command. No privileged launch, token, cloud account, or shell integration is
-required by this implementation.
+required by the original server. Live Gemini use separately requires an API key;
+offline mock use does not.
 
 If you use [Inspector](../lab-01-mcp-fundamentals.md#optional-mcp-inspector), follow
 its local access controls and avoid sharing connection tokens or screenshots
@@ -112,6 +145,14 @@ The later Lab 3 local run passed **26 tests, zero failures, zero skips**. Its
 exclusive creation, filesystem checks, quota, and injected failures;
 [enabled stdio testing](../../test/note-stdio.test.mjs) preserves all five prior
 tools. This is recorded evidence, not a fresh run for this documentation edit.
+
+Lab 4's recorded stage totals were **56**, **80**, and **96** passing tests.
+Controller/agent suites test allowlisting, invalid requests, sanitized results,
+model failures, and cleanup. HTTP tests add local URL/address and Origin/Host
+rejections, request bounds, stateless protocol behavior, and shutdown. The
+[shared verification record](../README.md#verification) distinguishes deterministic
+tests from operator-reported live success. None is a public HTTP security audit,
+billing/quota check, or test of isolation from hostile same-account processes.
 
 ## Troubleshooting
 
@@ -137,6 +178,13 @@ A narrow diagnostic interface is easier to reason about than arbitrary shell
 access. Process identity, launch configuration, input validation, and output
 handling all contribute to operational control. Adding remediation later would
 require its own explicit permissions and failure analysis.
+
+## Limitations
+
+The trusted local-user assumptions of Lab 3 still apply. Lab 4 adds output
+projection and narrow transport policy, not OS isolation or network identity.
+Readiness checks cover snapshots, not the security or deployability of an
+application. Live API availability is external and nondeterministic.
 
 ## Lessons learned
 
